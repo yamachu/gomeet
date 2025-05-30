@@ -1,3 +1,4 @@
+import GoogleTokensDatastore from "../datastores/google_tokens_datastore.ts";
 import { DefineFunction, Schema, SlackFunction } from "deno-slack-sdk/mod.ts";
 
 // Google認証用URL生成関数（ダミー）
@@ -32,15 +33,30 @@ export const GomeetFunctionDefinition = DefineFunction({
 // Function実装
 export default SlackFunction(
   GomeetFunctionDefinition,
-  ({ inputs }) => {
-    // TODO: Datastoreからinputs.user_idのトークン有無を判定する処理を追加
-    // 今は常に認証案内を返す
-    const authUrl = getGoogleAuthUrl(inputs.user_id);
-    return {
-      outputs: {
-        text:
-          `Google Meetを作成するにはGoogle認証が必要です。以下のURLから認証を行ってください。\n${authUrl}`,
-      },
-    };
+  async ({ inputs, client }) => {
+    // Datastoreからトークン有無を判定
+    const result = await client.apps.datastore.get({
+      datastore: GoogleTokensDatastore.name,
+      id: inputs.user_id,
+    });
+    // 型アサーションでrefresh_tokenを参照
+    const refresh_token = result?.item?.["refresh_token"] as string | undefined;
+    if (result.ok && refresh_token) {
+      // TODO: Google Calendar APIでMeet作成処理をここに追加
+      return {
+        outputs: {
+          text: "（仮）Google認証済みです。今後ここでMeetを作成します。",
+        },
+      };
+    } else {
+      // 未認証なら認証URLを案内
+      const authUrl = getGoogleAuthUrl(inputs.user_id);
+      return {
+        outputs: {
+          text:
+            `Google Meetを作成するにはGoogle認証が必要です。以下のURLから認証を行ってください。\n${authUrl}`,
+        },
+      };
+    }
   },
 );
