@@ -1,5 +1,6 @@
 import { Manifest } from "deno-slack-sdk/mod.ts";
 import GoogleTokensDatastore from "./datastores/google_tokens_datastore.ts";
+import GomeetWorkflow from "./workflows/gomeet_workflow.ts";
 
 /**
  * The app manifest contains the app's configuration. This
@@ -10,7 +11,7 @@ export default Manifest({
   name: "go-meet",
   description: "A template for building Slack apps with Deno",
   icon: "assets/default_new_app_icon.png",
-  workflows: [],
+  workflows: [GomeetWorkflow],
   outgoingDomains: [],
   datastores: [GoogleTokensDatastore],
   botScopes: [
