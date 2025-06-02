@@ -6,9 +6,7 @@ import { DefineFunction, Schema, SlackFunction } from "deno-slack-sdk/mod.ts";
 function getGoogleAuthUrl(env: Env, user_id: string): string {
   // TODO: Google OAuthクライアント情報を用いて認証URLを生成する
   // credential.json等は後で用意
-  return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${
-    env["GOOGLE_CLIENT_ID"]
-  }&redirect_uri=TODO_REDIRECT_URI&response_type=code&scope=calendar&state=${user_id}`;
+  return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${env.GOOGLE_REDIRECT_URI}&response_type=code&scope=calendar&state=${user_id}`;
 }
 
 // Function定義
@@ -117,10 +115,92 @@ export default SlackFunction(
         | string
         | undefined;
       if (result.ok && refresh_token) {
-        // TODO: Google Calendar APIでMeet作成処理をここに追加
+        // Google Calendar APIでMeet作成処理
+        const clientId = env.GOOGLE_CLIENT_ID;
+        const clientSecret = env.GOOGLE_CLIENT_SECRET;
+        // 1. refresh_tokenからaccess_token取得
+        const tokenParams = new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token,
+          grant_type: "refresh_token",
+        });
+        let accessToken = "";
+        try {
+          const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: tokenParams.toString(),
+          });
+          const tokenJson = await tokenRes.json();
+          accessToken = tokenJson.access_token;
+          if (!accessToken) {
+            return {
+              outputs: {
+                text:
+                  `Googleアクセストークン取得に失敗しました。再認証をお試しください。\n詳細: ${
+                    JSON.stringify(tokenJson)
+                  }`,
+              },
+            };
+          }
+        } catch (e) {
+          return {
+            outputs: {
+              text: `Googleアクセストークン取得時にエラー: ${e}`,
+            },
+          };
+        }
+        // 2. Google Calendar APIでイベント作成（Meet付き）
+        const now = new Date();
+        const end = new Date(now.getTime() + 30 * 60 * 1000); // 30分後
+        const eventBody = {
+          summary: "Slackから作成したGoogle Meet", // TODO: チャンネル名を入れるなど工夫
+          start: { dateTime: now.toISOString() },
+          end: { dateTime: end.toISOString() },
+          conferenceData: {
+            createRequest: {
+              requestId: `${inputs.user_id}-${Date.now()}`,
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          },
+        };
+        let meetUrl = "";
+        try {
+          const calRes = await fetch(
+            "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1",
+            {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(eventBody),
+            },
+          );
+          const calJson = await calRes.json();
+          meetUrl = calJson.conferenceData?.entryPoints?.find((ep: any) =>
+            ep.entryPointType === "video"
+          )?.uri;
+          if (!meetUrl) {
+            return {
+              outputs: {
+                text: `Meet URLの取得に失敗しました。詳細: ${
+                  JSON.stringify(calJson)
+                }`,
+              },
+            };
+          }
+        } catch (e) {
+          return {
+            outputs: {
+              text: `Google Calendar API実行時にエラー: ${e}`,
+            },
+          };
+        }
         return {
           outputs: {
-            text: "（仮）Google認証済みです。今後ここでMeetを作成します。",
+            text: `Google Meetを作成しました！\n${meetUrl}`,
           },
         };
       } else {
