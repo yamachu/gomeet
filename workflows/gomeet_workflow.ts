@@ -5,14 +5,15 @@ import { GomeetFunctionDefinition } from "../functions/gomeet_function.ts";
 const GomeetWorkflow = DefineWorkflow({
   callback_id: "gomeet_workflow",
   title: "Go Meet Workflow",
-  description: "/gomeetコマンドでGoogle Meetを作成するワークフロー",
+  description:
+    "/gomeetコマンドでGoogle Meetを作成・認可コード登録も対応するワークフロー",
   input_parameters: {
     properties: {
       user_id: { type: Schema.types.string },
       channel_id: { type: Schema.types.string },
-      command: { type: Schema.types.string },
+      text: { type: Schema.types.string },
     },
-    required: ["user_id", "channel_id", "command"],
+    required: ["user_id", "channel_id", "text"],
   },
 });
 
