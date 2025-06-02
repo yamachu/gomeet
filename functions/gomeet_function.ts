@@ -1,11 +1,14 @@
+import type { Env } from "deno-slack-sdk/types.ts";
 import GoogleTokensDatastore from "../datastores/google_tokens_datastore.ts";
 import { DefineFunction, Schema, SlackFunction } from "deno-slack-sdk/mod.ts";
 
 // Google認証用URL生成関数（ダミー）
-function getGoogleAuthUrl(user_id: string): string {
+function getGoogleAuthUrl(env: Env, user_id: string): string {
   // TODO: Google OAuthクライアント情報を用いて認証URLを生成する
   // credential.json等は後で用意
-  return `https://accounts.google.com/o/oauth2/v2/auth?client_id=TODO_CLIENT_ID&redirect_uri=TODO_REDIRECT_URI&response_type=code&scope=calendar&state=${user_id}`;
+  return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${
+    env["GOOGLE_CLIENT_ID"]
+  }&redirect_uri=TODO_REDIRECT_URI&response_type=code&scope=calendar&state=${user_id}`;
 }
 
 // Function定義
@@ -33,27 +36,75 @@ export const GomeetFunctionDefinition = DefineFunction({
 // Function実装
 export default SlackFunction(
   GomeetFunctionDefinition,
-  async ({ inputs, client }) => {
+  async ({ inputs, client, env }) => {
     const text = (inputs.text || "").trim();
     // サブコマンド判定
     if (text.startsWith("code ")) {
       // 認可コード登録処理
       const code = text.replace(/^code\s+/, "");
-      // TODO: Google APIクライアント情報（credential.json等）は後で用意
-      // 認可コードからトークン取得処理
-      // const tokenResponse = await fetch(...)
-      // const refresh_token = tokenResponse.refresh_token;
-
-      // TODO: Datastoreへ保存する処理
-      // await client.apps.datastore.put({
-      //   datastore: GoogleTokensDatastore.name,
-      //   item: { user_id: inputs.user_id, refresh_token },
-      // });
-
+      const clientId = env.GOOGLE_CLIENT_ID;
+      const clientSecret = env.GOOGLE_CLIENT_SECRET;
+      const redirectUri = env.GOOGLE_REDIRECT_URI;
+      if (!clientId || !clientSecret || !redirectUri) {
+        return {
+          outputs: {
+            text:
+              "Google APIクライアント情報が未設定です。管理者に連絡してください。",
+          },
+        };
+      }
+      // Google OAuth2トークンエンドポイントにPOST
+      const params = new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      });
+      let tokenResponse;
+      try {
+        const res = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params.toString(),
+        });
+        tokenResponse = await res.json();
+      } catch (e) {
+        return {
+          outputs: {
+            text: `Googleトークン取得時にエラーが発生しました: ${e}`,
+          },
+        };
+      }
+      if (!tokenResponse.refresh_token) {
+        return {
+          outputs: {
+            text:
+              `トークン取得に失敗しました。認可コードが正しいか、再度認証を行ってください。\n詳細: ${
+                JSON.stringify(tokenResponse)
+              }`,
+          },
+        };
+      }
+      // Datastoreへ保存
+      try {
+        await client.apps.datastore.put({
+          datastore: GoogleTokensDatastore.name,
+          item: {
+            user_id: inputs.user_id,
+            refresh_token: tokenResponse.refresh_token,
+          },
+        });
+      } catch (e) {
+        return {
+          outputs: {
+            text: `トークン保存時にエラーが発生しました: ${e}`,
+          },
+        };
+      }
       return {
         outputs: {
-          text:
-            "認可コードを受け取りました。トークン取得・保存処理は今後実装します。",
+          text: "Google認証が完了しました。これでMeet作成が可能です。",
         },
       };
     } else {
@@ -74,7 +125,7 @@ export default SlackFunction(
         };
       } else {
         // 未認証なら認証URLを案内
-        const authUrl = getGoogleAuthUrl(inputs.user_id);
+        const authUrl = getGoogleAuthUrl(env, inputs.user_id);
         return {
           outputs: {
             text:
