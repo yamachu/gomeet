@@ -25,18 +25,23 @@ const inputForm = GomeetCodeWorkflow.addStep(
     submit_label: "送信",
     fields: {
       elements: [{
-        name: "text",
-        title: "コマンド引数/認可コード",
+        name: "code",
+        title: "認可コード",
+        type: Schema.types.string,
+      }, {
+        name: "state",
+        title: "State",
         type: Schema.types.string,
       }],
-      required: ["text"],
+      required: ["code", "state"],
     },
   },
 );
 const functionStep = GomeetCodeWorkflow.addStep(GomeetCodeFunctionDefinition, {
   channel_id: GomeetCodeWorkflow.inputs.channel_id,
   user_id: GomeetCodeWorkflow.inputs.user_id,
-  text: inputForm.outputs.fields.text,
+  code: inputForm.outputs.fields.code,
+  state: inputForm.outputs.fields.state,
 });
 
 GomeetCodeWorkflow.addStep(Schema.slack.functions.SendEphemeralMessage, {

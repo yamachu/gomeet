@@ -1,5 +1,6 @@
 import { DefineFunction, Schema, SlackFunction } from "deno-slack-sdk/mod.ts";
 import GoogleTokensDatastore from "../datastores/google_tokens_datastore.ts";
+import { toHashedState } from "../utils/state.ts";
 
 // Function定義
 export const GomeetCodeFunctionDefinition = DefineFunction({
@@ -11,9 +12,10 @@ export const GomeetCodeFunctionDefinition = DefineFunction({
     properties: {
       user_id: { type: Schema.slack.types.user_id },
       channel_id: { type: Schema.slack.types.channel_id },
-      text: { type: Schema.types.string },
+      code: { type: Schema.types.string },
+      state: { type: Schema.types.string },
     },
-    required: ["user_id", "channel_id", "text"],
+    required: ["user_id", "channel_id", "code", "state"],
   },
   output_parameters: {
     properties: {
@@ -27,8 +29,17 @@ export const GomeetCodeFunctionDefinition = DefineFunction({
 export default SlackFunction(
   GomeetCodeFunctionDefinition,
   async ({ inputs, client, env }) => {
+    const expectedState = await toHashedState(inputs.user_id, env.SALT);
+    if (expectedState !== inputs.state) {
+      return {
+        outputs: {
+          text: "不正なリクエストです。再度認証を行ってください。",
+        },
+      };
+    }
+
     // 認可コード登録処理
-    const code = inputs.text;
+    const code = inputs.code;
     const clientId = env.GOOGLE_CLIENT_ID;
     const clientSecret = env.GOOGLE_CLIENT_SECRET;
     const redirectUri = env.GOOGLE_REDIRECT_URI;
@@ -76,9 +87,7 @@ export default SlackFunction(
       return {
         outputs: {
           text:
-            `トークン取得に失敗しました。認可コードが正しいか、再度認証を行ってください。\n詳細: ${
-              JSON.stringify(tokenResponse)
-            }`,
+            `トークン取得に失敗しました。認可コードが正しいか、再度認証を行ってください。`,
         },
       };
     }

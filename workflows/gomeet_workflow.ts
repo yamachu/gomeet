@@ -9,19 +9,21 @@ const GomeetWorkflow = DefineWorkflow({
     "Google Meetを作成・認可コード登録も対応するワークフロー（ショートカット起動対応）",
   input_parameters: {
     properties: {
-      user_id: { type: Schema.types.string },
-      channel_id: { type: Schema.types.string },
-      text: {
-        type: Schema.types.string,
-        description:
-          "コマンド引数や認可コードを入力してください（例: code <認可コード>）",
-        title: "コマンド引数/認可コード",
-      },
+      user_id: { type: Schema.slack.types.user_id },
+      channel_id: { type: Schema.slack.types.channel_id },
     },
-    required: ["user_id", "channel_id", "text"],
+    required: ["user_id", "channel_id"],
   },
 });
 
-GomeetWorkflow.addStep(GomeetFunctionDefinition, GomeetWorkflow.inputs);
+const functionStep = GomeetWorkflow.addStep(
+  GomeetFunctionDefinition,
+  GomeetWorkflow.inputs,
+);
+
+GomeetWorkflow.addStep(Schema.slack.functions.SendMessage, {
+  channel_id: GomeetWorkflow.inputs.channel_id,
+  message: functionStep.outputs.text,
+});
 
 export default GomeetWorkflow;

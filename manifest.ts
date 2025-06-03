@@ -15,6 +15,7 @@ export default Manifest({
   workflows: [GomeetWorkflow, GomeetCodeWorkflow],
   outgoingDomains: [
     "oauth2.googleapis.com",
+    "www.googleapis.com",
   ],
   datastores: [GoogleTokensDatastore],
   botScopes: [
