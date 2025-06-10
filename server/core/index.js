@@ -1,7 +1,6 @@
-import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 
-const app = new Hono();
+export const app = new Hono();
 
 app.get("/oauth2/callback", (c) => {
   const code = c.req.query("code");
@@ -15,8 +14,4 @@ app.get("/oauth2/callback", (c) => {
     <pre>${code}</pre>
     <p>（state: ${state}）</p>
   `);
-});
-
-serve(app, (info) => {
-  console.log(`Listening on http://localhost:${info.port}`);
 });

@@ -1,0 +1,9 @@
+{
+  "name": "node",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "1.14.3",
+    "@server/core": "file:../../core"
+  }
+}
